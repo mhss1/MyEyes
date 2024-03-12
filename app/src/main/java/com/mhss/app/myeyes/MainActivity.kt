@@ -93,7 +93,7 @@ class MainActivity : ComponentActivity() {
                                             resultsList = results
                                         }
                                     )
-                                    if (selectedModel == OBJECT_DETECTOR) {
+                                    if (selectedModel == OBJECT_DETECTOR || selectedModel == CURRENCY_DETECTOR) {
                                         OverlayCanvas(
                                             modifier = Modifier.fillMaxSize(),
                                             results = resultsList,

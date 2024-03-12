@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import android.widget.Toast
+import com.mhss.app.myeyes.OBJECT_DETECTOR
 import com.mhss.app.myeyes.model.DetectedObject
 import com.mhss.app.myeyes.model.toDetectedObject
 import org.tensorflow.lite.gpu.CompatibilityList
@@ -14,19 +15,17 @@ import org.tensorflow.lite.task.core.BaseOptions
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
 
 class ObjectDetectorHelper(
-    private val threshold: Float = 0.5f,
+    private val context: Context,
+    private var threshold: Float = 0.5f,
     private val numThreads: Int = 2,
     private val maxResults: Int = 3,
     private val currentDelegate: Int = DELEGATE_CPU,
-    val context: Context,
     val onResults: (List<DetectedObject>, Int, Int) -> Unit
 ) {
 
     private lateinit var objectDetector: ObjectDetector
 
-    init {
-        setupObjectDetector()
-    }
+    private var currentModel = MODEL_OBJECT_DETECTOR
 
     // Initialize the object detector using current settings on the
     // thread that is using it. CPU and NNAPI delegates can be used with detectors
@@ -56,11 +55,9 @@ class ObjectDetectorHelper(
 
         optionsBuilder.setBaseOptions(baseOptionsBuilder.build())
 
-        val modelName = "efficientdet_lite1.tflite"
-
         try {
             objectDetector =
-                ObjectDetector.createFromFileAndOptions(context, modelName, optionsBuilder.build())
+                ObjectDetector.createFromFileAndOptions(context, currentModel, optionsBuilder.build())
         } catch (e: IllegalStateException) {
             Toast.makeText(
                 context,
@@ -87,9 +84,23 @@ class ObjectDetectorHelper(
         onResults(results, tensorImage.height, tensorImage.width)
     }
 
+    fun setModel(model: Int) {
+        currentModel = if (model == OBJECT_DETECTOR) {
+            threshold = 0.6f
+            MODEL_OBJECT_DETECTOR
+        } else {
+            threshold = 0.4f
+            MODEL_CURRENCY_DETECTOR
+        }
+        setupObjectDetector()
+    }
+
     companion object {
         const val DELEGATE_CPU = 0
         const val DELEGATE_GPU = 1
         const val DELEGATE_NNAPI = 2
+
+        const val MODEL_OBJECT_DETECTOR = "efficientdet_lite1.tflite"
+        const val MODEL_CURRENCY_DETECTOR = "currency_detector.tflite"
     }
 }

@@ -12,6 +12,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,9 +24,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.mhss.app.myeyes.CURRENCY_DETECTOR
 import com.mhss.app.myeyes.OBJECT_DETECTOR
-import com.mhss.app.myeyes.TEXT_DETECTOR
 import com.mhss.app.myeyes.ai.ObjectDetectorHelper
 import com.mhss.app.myeyes.model.DetectedObject
+import com.mhss.app.myeyes.util.toCurrencySummary
 import java.util.Locale
 
 @Composable
@@ -43,9 +44,14 @@ fun CameraView(
     var imageAnalyzer: ImageAnalysis?
     var preview by remember { mutableStateOf<Preview?>(null) }
     var bitmapBuffer: Bitmap? = remember { null }
-    var currentResultsSet by remember { mutableStateOf<Set<String>>(setOf()) }
-    var objectDetector: ObjectDetectorHelper?
+    var currentObjectsSet by remember { mutableStateOf<Set<String>>(setOf()) }
+    var currentCurrencyMap by remember { mutableStateOf<Map<String, Int>>(mapOf()) }
+    var objectDetector: ObjectDetectorHelper? = null
     var tts: TextToSpeech? = null
+
+    LaunchedEffect(aiModel) {
+        objectDetector?.setModel(aiModel)
+    }
 
     AndroidView(
         modifier = modifier,
@@ -71,26 +77,43 @@ fun CameraView(
             }
 
             var processed = 0
-            objectDetector = ObjectDetectorHelper(
-                context = context,
-                onResults = { results, width, height ->
+            objectDetector = ObjectDetectorHelper(context) { results, width, height ->
                     onResults(results, width, height)
-                    val resultsSet = results.map { it.label }.toSet()
-                    val diff = resultsSet - currentResultsSet
-                    diff.forEach { txt ->
-                        tts?.speak(
-                            txt,
-                            TextToSpeech.QUEUE_ADD,
-                            null,
-                            null
-                        )
-                    }
-                    currentResultsSet += diff
-                    if (processed++ % 120 == 0) {
-                        currentResultsSet = setOf()
+                    if (aiModel == OBJECT_DETECTOR) {
+                        val resultsSet = results.map { it.label }.toSet()
+                        val diff = resultsSet - currentObjectsSet
+                        if (diff.isNotEmpty()) tts?.stop()
+                        diff.forEach { txt ->
+                            tts?.speak(
+                                txt,
+                                TextToSpeech.QUEUE_ADD,
+                                null,
+                                null
+                            )
+                        }
+                        currentObjectsSet += diff
+                        if (processed++ % 120 == 0) {
+                            currentObjectsSet = setOf()
+                        }
+                        currentCurrencyMap = mapOf()
+                    } else {
+                        val currenciesMap = results.groupBy { it.label }.mapValues { it.value.size }
+                        if (currenciesMap.isNotEmpty() && currenciesMap != currentCurrencyMap && currenciesMap.size > currentCurrencyMap.size) {
+                            val summary = currenciesMap.toCurrencySummary()
+                            tts?.speak(
+                                summary,
+                                TextToSpeech.QUEUE_FLUSH,
+                                null,
+                                null
+                            )
+                            currentCurrencyMap = currenciesMap
+                        }
+                        if (processed++ % 120 == 0) {
+                            currentCurrencyMap = mapOf()
+                        }
+                        currentObjectsSet = setOf()
                     }
                 }
-            )
 
             var imageRotationDegrees = 0
 
@@ -157,14 +180,13 @@ fun CameraView(
                                             )
                                         }
 
-                                        when (aiModel) {
-                                            OBJECT_DETECTOR -> objectDetector?.detect(
+                                        if (aiModel == OBJECT_DETECTOR || aiModel == CURRENCY_DETECTOR) {
+                                            objectDetector?.detect(
                                                 bitmapBuffer!!,
                                                 imageRotationDegrees
                                             )
+                                        } else {
 
-                                            TEXT_DETECTOR -> {}
-                                            CURRENCY_DETECTOR -> {}
                                         }
                                     }
                                 }
