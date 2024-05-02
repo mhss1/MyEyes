@@ -25,6 +25,7 @@ import androidx.core.content.ContextCompat
 import com.mhss.app.myeyes.CURRENCY_DETECTOR
 import com.mhss.app.myeyes.OBJECT_DETECTOR
 import com.mhss.app.myeyes.ai.ObjectDetectorHelper
+import com.mhss.app.myeyes.ai.TextDetectorHelper
 import com.mhss.app.myeyes.model.DetectedObject
 import com.mhss.app.myeyes.util.toCurrencySummary
 import java.util.Locale
@@ -47,9 +48,11 @@ fun CameraView(
     var currentObjectsSet by remember { mutableStateOf<Set<String>>(setOf()) }
     var currentCurrencyMap by remember { mutableStateOf<Map<String, Int>>(mapOf()) }
     var objectDetector: ObjectDetectorHelper? = null
+    var textDetector: TextDetectorHelper? = null
     var tts: TextToSpeech? = null
 
     LaunchedEffect(aiModel) {
+        tts?.stop()
         objectDetector?.setModel(aiModel)
     }
 
@@ -77,6 +80,20 @@ fun CameraView(
             }
 
             var processed = 0
+            textDetector = TextDetectorHelper {  results, width, height ->
+                onResults(results, width, height)
+                if (processed++ % 120 == 0) {
+                    tts?.stop()
+                    results.forEach {
+                        tts?.speak(
+                            it.label,
+                            TextToSpeech.QUEUE_ADD,
+                            null,
+                            null
+                        )
+                    }
+                }
+            }
             objectDetector = ObjectDetectorHelper(context) { results, width, height ->
                     onResults(results, width, height)
                     if (aiModel == OBJECT_DETECTOR) {
@@ -186,7 +203,10 @@ fun CameraView(
                                                 imageRotationDegrees
                                             )
                                         } else {
-
+                                            textDetector?.detect(
+                                                bitmapBuffer!!,
+                                                imageRotationDegrees
+                                            )
                                         }
                                     }
                                 }
