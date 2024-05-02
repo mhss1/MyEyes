@@ -4,3 +4,6 @@
 
 ## How to use:
 Open the app and choose one of the three options (Discover, Text or Money) and the app will speak out loud what it sees.
+
+- Currency detection model was trained on the [Egyptian Currency](https://www.kaggle.com/datasets/egyptiris/egyptian-currency) dataset
+
